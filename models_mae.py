@@ -275,19 +275,74 @@ class MaskedAutoencoderViT(nn.Module):
         # print(output.shape,target.shape)
         disc_loss = torch.nn.BCELoss()
         return disc_loss(output, target)
-    def batch_loss(self, x, batch_label):
-        # Real and fake discriminator outputs
-        output = self.discriminator_batch(x)
-        print(output.shape)
-        # print(output)
-        output = output[:, 0, :]
+    
+    # def batch_loss(self, x, batch_label):
+    #     # Real and fake discriminator outputs
+    #     output = self.discriminator_batch(x)
+    #     print(output.shape)
+    #     # print(output)
+    #     output = output[:, 0, :]
 
-        # target = 1 - mask
-        # target = target.float()
-        # print(output.shape,target.shape)
-        batch_loss = torch.nn.CrossEntropyLoss()
-        # print(output,batch_label)
-        return batch_loss(output, batch_label)
+    #     # target = 1 - mask
+    #     # target = target.float()
+    #     # print(output.shape,target.shape)
+    #     batch_loss = torch.nn.CrossEntropyLoss()
+    #     # print(output,batch_label)
+    #     return batch_loss(output, batch_label)
+
+    # def batch_loss(self, x, batch_label, current_epoch, switch_epoch=10):
+    #     output = self.discriminator_batch(x)
+    #     output = output[:, 0, :]  # shape: [batch_size, num_classes]
+
+    #     if current_epoch < switch_epoch:
+    #         # 阶段1：使用 CrossEntropyLoss
+    #         loss_fn = torch.nn.CrossEntropyLoss()
+    #         loss = loss_fn(output, batch_label)
+    #     else:
+    #         # 阶段2：切换到信息熵最大化
+    #         probabilities = torch.nn.functional.softmax(output, dim=-1)
+    #         entropy = -torch.sum(probabilities * torch.log(probabilities + 1e-10), dim=-1) # max P * log(P)
+    #         loss = -torch.mean(entropy)  # 最大化熵，等价于最小化负熵
+
+    #     return loss
+
+    # def batch_loss(self, x, batch_label, current_epoch, switch_epoch=10):
+    #     output = self.discriminator_batch(x)
+    #     output = output[:, 0, :]  # shape: [batch_size, num_classes]
+
+    #     # 计算 CrossEntropyLoss
+    #     ce_loss_fn = torch.nn.CrossEntropyLoss()
+    #     ce_loss = ce_loss_fn(output, batch_label)
+
+    #     # 计算信息熵最大化损失
+    #     probabilities = torch.nn.functional.softmax(output, dim=-1)
+    #     entropy = -torch.sum(probabilities * torch.log(probabilities + 1e-10), dim=-1)
+    #     entropy_loss = -torch.mean(entropy)  # 最大化熵
+
+    #     # 动态加权
+    #     alpha = max(0, 1 - current_epoch / switch_epoch)
+    #     loss = alpha * ce_loss + (1 - alpha) * entropy_loss
+
+    #     return loss
+
+    def batch_loss(self, x):
+        # 获取分类器的输出
+        output = self.discriminator_batch(x)  # 假设输出是 [batch_size, seq_len, num_classes]
+
+        # 如果需要选取特定位置的预测
+        output = output[:, 0, :]  # shape: [batch_size, num_classes]
+
+        # 使用 softmax 将 logits 转换为概率分布
+        probabilities = torch.nn.functional.softmax(output, dim=-1)  # shape: [batch_size, num_classes]
+
+        # 计算熵 H(p) = -sum(p * log(p))
+        entropy = -torch.sum(probabilities * torch.log(probabilities + 1e-10), dim=-1)  # 防止 log(0)
+
+        # 最大化熵，等价于最小化负熵
+        loss = -torch.mean(entropy)  # 对 batch 内所有样本取均值
+
+        return loss
+
     
 
     def adv_loss(self, currupt_img, mask):
