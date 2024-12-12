@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import os
 from PIL import Image
-
+import pandas as pd
 class CustomDataset(Dataset):
     def __init__(self, data_path: str = ""):
         # 定义文件夹到标签的映射，共 51 个文件夹，对应标签从 0 到 50
@@ -18,29 +18,49 @@ class CustomDataset(Dataset):
             'RPE-09': 43, 'RPE-10': 44, 'RPE-11': 45, 'U2OS-01': 46, 'U2OS-02': 47, 'U2OS-03': 48, 'U2OS-04': 49, 'U2OS-05': 50
         }
         self.data_path = data_path
-        self.data = []
+        data = pd.read_csv(self.data_path)
+        self.data = list(data['site_id'])
         
         # 遍历每个文件夹，读取所有图像路径
-        for folder_name, label in self.class_map.items():
-            folder_path = os.path.join(self.data_path, folder_name)
-            for filepath in glob.iglob(os.path.join(folder_path, '*.png')):
-                self.data.append([filepath, label])
+        # for folder_name, label in self.class_map.items():
+        #     folder_path = os.path.join(self.data_path, folder_name)
+        #     for filepath in glob.iglob(os.path.join(folder_path, '*.png')):
+        #         self.data.append([filepath, label])
                 
     def __len__(self):
         return len(self.data)
     
     def __getitem__(self, idx):
-        img_path, class_id = self.data[idx]
+        exp,plate_id,wellpos,site = self.data[idx].split('_')
+        # all_channel_img = np.array([])
+        for channel in range(1,7):
+            img_path = f"/media/NAS06/zhc/rxrx1/images/{exp}/Plate{plate_id}/{wellpos}_s{site}_w{channel}.png"
+            image = Image.open(img_path)
+            image = np.array(image)
+            if channel==1:
+                all_channel_img=torch.from_numpy(image).unsqueeze(0)
+                # print(all_channel_img.shape)
+            else:
+            
+                all_channel_img = torch.cat(( all_channel_img, torch.from_numpy( image).unsqueeze(0)),0)
+                # print(all_channel_img.shape)
+            # print(all_channel_img)
+        # print(all_channel_img.s)
+
+        class_id = self.class_map[exp]
+        # self.data[idx]
         # 使用 PIL 读取图像并转换为 NumPy 数组
-        image = Image.open(img_path).convert('RGB')
-        image = np.array(image)
-        
+        # image = Image.open(img_path)
+        # image = np.array(image)
+        # img_tensor =  torch.from_numpy(all_channel_img)
         # 确保图像为 (512, 512, 6) 的形状
-        if image.shape != (512, 512, 3):
-            raise ValueError(f"Unexpected image shape: {image.shape}, expected (512, 512, 6)")
+        # print(all_channel_img)
+        img_tensor = all_channel_img.float()
+        if img_tensor.shape != (6, 512, 512):
+            raise ValueError(f"Unexpected image shape: {image.shape}, expected (6, 512, 512)")
         
         # 将图像转换为 PyTorch 张量并调整维度顺序 (C, H, W)
-        img_tensor = torch.from_numpy(image).permute(2, 0, 1).float()
+        # img_tensor = torch.from_numpy(image).permute(2, 0, 1).float()
         
         # 对图像进行归一化处理
         mean = img_tensor.mean(dim=(1, 2), keepdim=True)

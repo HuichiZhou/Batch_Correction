@@ -22,7 +22,7 @@ from utils.pos_embed import get_2d_sincos_pos_embed
 class MaskedAutoencoderViT(nn.Module):
     """ Masked Autoencoder with VisionTransformer backbone
     """
-    def __init__(self, img_size=512, patch_size=16, in_chans=3,
+    def __init__(self, img_size=512, patch_size=16, in_chans=6,
                  embed_dim=1024, depth=24, num_heads=16,
                  decoder_embed_dim=512, decoder_depth=8, decoder_num_heads=16,
                  mlp_ratio=4., norm_layer=nn.LayerNorm, norm_pix_loss=False):
@@ -103,9 +103,9 @@ class MaskedAutoencoderViT(nn.Module):
         assert imgs.shape[2] == imgs.shape[3] and imgs.shape[2] % p == 0
 
         h = w = imgs.shape[2] // p
-        x = imgs.reshape(shape=(imgs.shape[0], 3, h, p, w, p))
+        x = imgs.reshape(shape=(imgs.shape[0], 6, h, p, w, p))
         x = torch.einsum('nchpwq->nhwpqc', x)
-        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 3))
+        x = x.reshape(shape=(imgs.shape[0], h * w, p**2 * 6))
         return x
 
     def unpatchify(self, x):
@@ -117,9 +117,9 @@ class MaskedAutoencoderViT(nn.Module):
         h = w = int(x.shape[1]**.5)
         assert h * w == x.shape[1]
         
-        x = x.reshape(shape=(x.shape[0], h, w, p, p, 3))
+        x = x.reshape(shape=(x.shape[0], h, w, p, p, 6))
         x = torch.einsum('nhwpqc->nchpwq', x)
-        imgs = x.reshape(shape=(x.shape[0], 3, h * p, h * p))
+        imgs = x.reshape(shape=(x.shape[0], 6, h * p, h * p))
         return imgs
 
     def random_masking(self, x, mask_ratio):
@@ -376,7 +376,8 @@ class MaskedAutoencoderViT(nn.Module):
         print(currupt_img.shape)
 
         disc_loss = self.discriminator_loss(currupt_img, mask)
-        batch_loss = self.batch_loss(currupt_img,batch_label)
+        # batch_loss = self.batch_loss(currupt_img,batch_label)
+        batch_loss = self.batch_loss(currupt_img)
         adv_loss = self.adv_loss(currupt_img, mask)
 
         return loss, pred, mask, disc_loss, adv_loss, currupt_img,batch_loss
